@@ -18,6 +18,7 @@ class CzNovelGrabber(NovelGrabber):
         return reg_article
 
     def get_chapter_urls_reg(self):
+        # <a rel="nofollow" href="/2105128652/565.html">538.絕境</a>
         reg_url = re.compile(
             '<li><a.*?href.*?="(?P<url>.*?)".*?>.*?</li>', re.MULTILINE
         )
@@ -30,11 +31,11 @@ class CzNovelGrabber(NovelGrabber):
     def get_novel_content_reg(self):
         # <div class="chapter-content
         reg_content = re.compile(
-            '<div.*?class.*?=.*?"chapter-content".*?>(?P<content>.*?)<ad.*?pos="bottom">',
+            '<div.*?class.*?=.*?"chapter-content.*?".*?>(?P<content>.*?)<a .*?target="_blank">目錄<',
             re.DOTALL,
         )
         return reg_content
 
 
 if __name__ == "__main__":
-    CzNovelGrabber(TXTENCODE="utf-8", tip="ex: https://www.timotxt.com/2105128652/dir").run()
+    CzNovelGrabber(TXTENCODE="utf-8", tip="ex: https://www.timotxt.com/2105128652/dir").run(worker_num=1, sleep_time=0.01, max_tries=100, save_raw_buf=True)

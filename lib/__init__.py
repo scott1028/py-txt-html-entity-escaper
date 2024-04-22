@@ -16,6 +16,8 @@ H = html
 
 from lib.logger import LOG
 from lib.logger import ERROR
+from lib.logger import LOG_TIME
+from lib.logger import LOG_TIME_END
 from lib.textProcessor import content_handle
 
 
@@ -34,12 +36,13 @@ def parallel_handle(
     return [result.get(timeout=timeout) for result in results]
 
 
-def getContent(url, TXTENCODE=None, max_tries=10):
+def getContent(url, TXTENCODE=None, max_tries=10, sleep_time=0.001):
     counter = 0
     buf = ""
     while counter <= max_tries:
         try:
-            LOG(url, "[Start]", "(tried count: %s)" % counter)
+            time.sleep(sleep_time)
+            LOG(url, "[Start]", "(tried count: %s, url: %s)" % (counter, url))
             version = str(int(random.random() * 10 + 70))
             req = urllib.request.Request(
                 url,
@@ -54,7 +57,7 @@ def getContent(url, TXTENCODE=None, max_tries=10):
                 buf = fd.read()
             else:
                 buf = H.unescape(fd.read().decode(TXTENCODE, "ignore"))
-            LOG(url, "[Done]", "(tried count: %s)" % counter)
+            LOG(url, "[Done]", "(tried count: %s, url: %s, buf: %s)" % (counter, url, len(buf)))
             break
         except Exception as e:
             LOG(e, url, counter)

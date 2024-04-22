@@ -4,10 +4,13 @@
 from functools import reduce
 import os
 import re
+import time
 
 from bs4 import BeautifulSoup
 
 from lib.logger import LOG
+from lib.logger import LOG_TIME
+from lib.logger import LOG_TIME_END
 from . import H
 
 # Filter special unicode
@@ -31,9 +34,11 @@ def filter_non_CJK_unicode(char):
         return ""
 
 
-def main_handle(buf, treat_as_pure_text):
+def main_handle(buf, treat_as_pure_text, skip_trim=False):
     def handle(buf):
         LOG("MODE: %s" % treat_as_pure_text)
+        if skip_trim:
+            return buf
         buf = re.sub("<script.*?</script>", "", buf, flags=re.DOTALL)
         buf = re.sub("<style.*?</style>", "", buf, flags=re.DOTALL)
         buf = re.sub("<template.*?</template>", "", buf, flags=re.DOTALL)
@@ -90,26 +95,27 @@ def main_handle(buf, treat_as_pure_text):
         LOG("curr: %s" % len(curr))
     buf = curr
 
-    # remove weird space symbol
-    buf = re.sub(r"(?:\xc2|\xa0)+", " ", buf, flags=re.DOTALL)
-    buf = re.sub(r"^ +", "", buf, flags=re.MULTILINE)
-    buf = re.sub(r"^ +", "", buf, flags=re.MULTILINE)
-    buf = re.sub(r" +$", "", buf, flags=re.MULTILINE)
-    # https://www.scivision.dev/hex-code-c2a0-non-breaking-space-markdown/
-    buf = re.sub(r"(?:\t)+", "", buf, flags=re.MULTILINE)
+    if not skip_trim:
+        # remove weird space symbol
+        buf = re.sub(r"(?:\xc2|\xa0)+", " ", buf, flags=re.DOTALL)
+        buf = re.sub(r"^ +", "", buf, flags=re.MULTILINE)
+        buf = re.sub(r"^ +", "", buf, flags=re.MULTILINE)
+        buf = re.sub(r" +$", "", buf, flags=re.MULTILINE)
+        # https://www.scivision.dev/hex-code-c2a0-non-breaking-space-markdown/
+        buf = re.sub(r"(?:\t)+", "", buf, flags=re.MULTILINE)
 
-    # remove duplicated tail symbol
-    buf = re.sub(r"((?:﹖|﹗|。|？|！|…))(?=\1)", "", buf, flags=re.DOTALL)
+        # remove duplicated tail symbol
+        buf = re.sub(r"((?:﹖|﹗|。|？|！|…))(?=\1)", "", buf, flags=re.DOTALL)
 
-    # add extra line wrap
-    buf = re.sub(r"((?:｢|「))", "\n\g<1>", buf, flags=re.DOTALL)
-    buf = re.sub(r"((?:｣|」))", "\g<1>\n", buf, flags=re.DOTALL)
-    buf = re.sub(r"((?:。){1}(?!｣|」))", "\g<1>\n", buf, flags=re.DOTALL)
+        # add extra line wrap
+        buf = re.sub(r"((?:｢|「))", "\n\g<1>", buf, flags=re.DOTALL)
+        buf = re.sub(r"((?:｣|」))", "\g<1>\n", buf, flags=re.DOTALL)
+        buf = re.sub(r"((?:。){1}(?!｣|」))", "\g<1>\n", buf, flags=re.DOTALL)
 
-    buf = re.sub(r"((?:｣|｢){1})", "\g<1>\n", buf, flags=re.MULTILINE)
+        buf = re.sub(r"((?:｣|｢){1})", "\g<1>\n", buf, flags=re.MULTILINE)
 
-    # remove duplicated line wrap symbol
-    buf = re.sub(r"((?:\n))+", "\g<1>", buf, flags=re.DOTALL)
+        # remove duplicated line wrap symbol
+        buf = re.sub(r"((?:\n))+", "\g<1>", buf, flags=re.DOTALL)
     return buf
 
 
@@ -195,10 +201,15 @@ def content_handle(
     chapterType="text",
     ocrMode="0",
     autoPagination="0",
+    skip_trim=False,
 ):
+    LOG_TIME('filter_non_CJK_unicode prepare')
     # https://docs.python.org/3/library/re.html#re.DOTALL
     buf = re.sub(r"(?:.)", filter_non_CJK_unicode, buf, flags=re.DOTALL)
-    buf = main_handle(buf, treat_as_pure_text)
+    LOG_TIME_END('filter_non_CJK_unicode prepare')
+    buf = main_handle(buf, treat_as_pure_text, skip_trim)
+    LOG_TIME('main_handle done')
     buf = post_handle(buf, chapterType, ocrMode, autoPagination)
+    LOG_TIME_END('main_handle done')
 
     return buf

@@ -8,6 +8,8 @@ from lib.textProcessor import content_handle
 from lib import getContent
 from lib import parallel_handle
 from lib import LOG
+from lib import LOG_TIME
+from lib import LOG_TIME_END
 from . import T
 
 # NOTE: issubclass(AnyClass(), NovelGrabber) ==> True / False
@@ -40,7 +42,7 @@ class NovelGrabber(metaclass=abc.ABCMeta):
         self.tip = tip
         pass
 
-    def run(self):
+    def run(self, worker_num=20, sleep_time=0.001, max_tries=10, skip_trim=False, save_raw_buf=False):
         LOG(self.tip)
         url = input("target url?")
         retrive_start = input(
@@ -50,7 +52,7 @@ class NovelGrabber(metaclass=abc.ABCMeta):
             retrive_start = int(retrive_start)
         else:
             retrive_start = 0
-        buf = getContent(url, self.TXTENCODE)
+        buf = getContent(url, self.TXTENCODE, max_tries, sleep_time)
         reg_title = self.get_title_reg()
         title = reg_title.search(buf).group("title")
         reg_article = self.get_article_area_reg()
@@ -59,31 +61,58 @@ class NovelGrabber(metaclass=abc.ABCMeta):
         base_url = self.get_base_novel_link_url_prefix(url)
         url_pool = ["%s%s" % (base_url, i.group("url")) for i in reg_url.finditer(buf)]
         url_pool = url_pool[retrive_start:]
-        buf_pool = parallel_handle(getContent, url_pool, 20)
+        LOG_TIME('parallel_handle(getContent, url_pool, worker_num)')
+        buf_pool = parallel_handle(getContent, url_pool, worker_num)
+        LOG_TIME_END('parallel_handle(getContent, url_pool, worker_num)')
         idx = 1
-        with open("done-%s-%s.txt" % (title, T), "w") as fd:
+        file_name = "done-%s-%s.txt" % (title, T)
+
+        if save_raw_buf:
+            LOG_TIME('save_raw_buf')
+            j = 0
+            with open(f"{file_name}.raw", "a") as fd:
+                while len(buf_pool) > j:
+                    fd.write(buf)
+                    fd.write("\r\n\r\n")
+                    j += 1
+            LOG_TIME_END('save_raw_buf')
+
+        with open(file_name, "w") as fd:
             j = 0
             while len(buf_pool) > j:
-                # for buf in buf_pool:
+                currJ = j
+                LOG_TIME(f'while#{currJ}')
                 buf = buf_pool[j]
                 j += 1
+                LOG_TIME(f'buf.decode#{currJ}')
                 buf = buf.decode(self.TXTENCODE, "ignore")
+                LOG_TIME_END(f'buf.decode#{currJ}')
                 reg_content = self.get_novel_content_reg()
+                LOG_TIME(f'reg_content.search#{currJ}')
                 reg_content_matched = reg_content.search(buf)
+                LOG_TIME_END(f'reg_content.search#{currJ}')
+                print(1)
                 if reg_content_matched != None:
-                    buf = content_handle(reg_content_matched.group("content"))
+                    LOG_TIME(f'content_handle#{currJ}')
+                    buf = content_handle(reg_content_matched.group("content"), skip_trim=skip_trim)
+                    LOG_TIME_END(f'content_handle#{currJ}')
                     fd.write("\r\n第%s回\r\n" % idx)
                     fd.write(buf)
                     idx += 1
                 # this part handle pagination in content buffer
                 next_page_reg = self.get_novel_content_next_page_url_req()
                 if next_page_reg != None:
+                    LOG_TIME(f'next_page_reg.search#{currJ}')
                     next_page_url = next_page_reg.search(buf)
+                    LOG_TIME_END(f'next_page_reg.search#{currJ}')
                     if next_page_url != None:
+                        LOG_TIME(f'parallel_handle -> getContent#{currJ}')
                         next_page_buf = parallel_handle(
                             getContent, [next_page_url.group("url")], 20
                         )[0]
+                        LOG_TIME_END(f'parallel_handle -> getContent#{currJ}')
                         buf_pool.insert(j, next_page_buf)
+                LOG_TIME_END(f'while#{currJ}')
 
     @abc.abstractmethod
     def get_title_reg(self):
